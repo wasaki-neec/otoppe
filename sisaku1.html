@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>フィーリングコレクション - プロトタイプ</title>
+	<link rel="stylesheet" href="sisaku1.css">
+</head>
+<body>
+	<!-- サイトヘッダー：アプリ名表示 -->
+	<header class="site-header">
+		<h1>フィーリングコレクション（プロトタイプ）</h1>
+	</header>
+
+	<main class="container">
+		<!-- 気候表示セクション
+				 - 位置情報を用いて天気APIから現在の気温・風速などを取得して表示します
+				 - ボタンで手動更新が可能 -->
+		<section id="weatherSection" class="card">
+			<h2>現在の気候</h2>
+			<div id="weather">位置情報と気候を取得しています…</div>
+			<button id="refreshWeather">天気を更新</button>
+		</section>
+
+		<!-- 気分・シーン選択セクション
+				 - ボタンで選んだ気分はローカルストレージに保存され、提案に利用されます -->
+		<section id="moodSection" class="card">
+			<h2>気分・シーンを選ぶ</h2>
+			<div id="moodButtons" class="chips">
+				<button data-mood="仕事">仕事</button>
+				<button data-mood="休日">休日</button>
+				<button data-mood="デート">デート</button>
+				<button data-mood="リラックス">リラックス</button>
+			</div>
+		</section>
+
+		<!-- ナビゲーション（各機能への移動） -->
+		<section id="navSection" class="card">
+			<h2>機能</h2>
+			<div class="nav-buttons">
+				<!-- 各ボタンはJSで対応セクションを表示します -->
+				<button id="toFace">顔タイプを測る</button>
+				<button id="toCloset">クローゼットを見る</button>
+				<button id="toPropose">コーデを提案してもらう</button>
+			</div>
+		</section>
+
+		<!-- 顔タイプ判別（簡易実装）
+				 - カメラ映像を表示し、撮影して顔縦横比から簡易判定を行う
+				 - 判定結果はlocalStorageに保存 -->
+		<section id="faceSection" class="card hidden">
+			<h2>顔タイプ判別（簡易）</h2>
+			<video id="camera" autoplay playsinline></video>
+			<canvas id="faceCanvas" class="hidden"></canvas>
+			<div class="face-controls">
+				<button id="startCamera">カメラ開始</button>
+				<button id="captureFace">撮影して判定</button>
+				<button id="stopCamera">カメラ停止</button>
+			</div>
+			<div id="faceResult">判定結果：未実行</div>
+		</section>
+
+		<!-- クローゼット（手持ち服の登録）
+				 - 画像ファイルを選択してローカルストレージに保存し、グリッドで表示 -->
+		<section id="closetSection" class="card hidden">
+			<h2>クローゼット（手持ち服）</h2>
+			<div class="closet-controls">
+				<input id="addCloth" type="file" accept="image/*">
+			</div>
+			<div id="closetGrid" class="grid"></div>
+		</section>
+
+		<!-- コーデ提案セクション
+				 - 登録済みの服画像から簡易的に組み合わせを作成し、アドバイス文を表示 -->
+		<section id="proposeSection" class="card hidden">
+			<h2>コーディネート提案</h2>
+			<div id="proposal"></div>
+			<div id="advice" class="advice"></div>
+			<button id="makeProposal">提案を作る</button>
+		</section>
+
+	</main>
+
+	<!-- プロトタイプ用のJS: 天気取得、気分選択、カメラ、クローゼット、提案処理 -->
+	<script src="sisaku1.js"></script>
+</body>
+</html>
+
