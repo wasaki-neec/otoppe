@@ -20,66 +20,167 @@ body{
 	color:#222;
 	margin:0;
 	padding:0;
+	font-size:16px;
+	line-height:1.6;
 }
 
 /* ヘッダー：アプリ名表示 */
 .site-header{
 	background:linear-gradient(90deg,#fff 0%,#f7f7fb 100%);
-	padding:14px 16px;
+	padding:18px 16px;
 	border-bottom:1px solid #eee;
+	position:sticky;
+	top:0;
+	z-index:100;
 }
-.site-header h1{margin:0;font-size:18px}
+.site-header h1{margin:0;font-size:20px;font-weight:600}
 
 /* 中央コンテナ（最大幅） */
-.container{max-width:800px;margin:18px auto;padding:0 12px}
+.container{max-width:100%;margin:16px auto;padding:0 16px}
+
+@media(min-width:768px){
+	.container{max-width:800px;padding:0 12px}
+}
 
 /* カードコンポーネント：各セクションの背景/余白 */
 .card{
 	background:var(--card);
 	border-radius:10px;
-	padding:12px;
-	margin-bottom:12px;
+	padding:16px;
+	margin-bottom:16px;
 	box-shadow:0 1px 3px rgba(0,0,0,0.04);
 }
 
+.card h2{
+	margin:0 0 12px 0;
+	font-size:18px;
+	font-weight:600;
+}
+
 /* 気分タグ（チップ） */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{
-	margin:6px 6px 0 0;
-	padding:8px 12px;
+	padding:10px 16px;
 	border-radius:20px;
 	border:1px solid #ddd;
 	background:#fff;
+	font-size:14px;
+	min-height:40px;
+	cursor:pointer;
+	transition:all 0.2s ease;
+}
+.chips button:active{
+	transform:scale(0.98);
 }
 .chips button.active{
-	/* 選択状態のスタイル */
 	background:var(--accent);
 	color:#fff;
 	border-color:var(--accent);
 }
 
 /* 機能遷移ボタン */
-.nav-buttons button{margin-right:8px;padding:10px 14px;border-radius:8px;border:1px solid #ddd;background:#fff}
+.nav-buttons{display:flex;flex-direction:column;gap:10px}
+.nav-buttons button{
+	padding:14px 16px;
+	border-radius:8px;
+	border:1px solid #ddd;
+	background:#fff;
+	font-size:15px;
+	font-weight:500;
+	min-height:48px;
+	cursor:pointer;
+	transition:all 0.2s ease;
+}
+.nav-buttons button:active{
+	background:#f5f5f5;
+}
+
+@media(min-width:640px){
+	.nav-buttons{flex-direction:row;flex-wrap:wrap}
+	.nav-buttons button{flex:1;min-width:140px}
+}
 
 /* ユーティリティ */
 .hidden{display:none}
 
-/* ビデオ（カメラ）領域のスタイル */
-video{width:100%;max-height:60vh;background:#000;border-radius:8px}
-.face-controls{margin-top:8px}
-.face-controls button{margin-right:8px}
-
-/* クローゼットのグリッド表示 */
-.grid{display:flex;flex-wrap:wrap;gap:8px}
-.grid img{width:48%;border-radius:8px;object-fit:cover}
+/* 提案表示（選ばれた服の並び） */
+#proposal{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+#proposal img{
+	width:calc(50% - 5px);
+	border-radius:8px;
+	object-fit:cover;
+	aspect-ratio:1;
+}
 
 /* 提案アドバイスの注意喚起スタイル */
-.advice{margin-top:8px;padding:10px;background:#fff7f6;border-radius:8px;border:1px solid #ffd6d1}
+.advice{
+	margin-top:12px;
+	padding:12px;
+	background:#fff7f6;
+	border-radius:8px;
+	border:1px solid #ffd6d1;
+	font-size:14px;
+	line-height:1.5;
+}
 
-/* 提案表示（選ばれた服の並び） */
-#proposal{display:flex;gap:8px;flex-wrap:wrap}
-#proposal img{max-width:48%;border-radius:8px}
+/* 一般的なボタン */
+button{
+	font-family:inherit;
+	font-size:inherit;
+	cursor:pointer;
+	-webkit-appearance:none;
+	appearance:none;
+}
 
-/* レスポンシブ：広めの画面では画像を小さくして多く並べる */
-@media(min-width:640px){.grid img{width:24%}}
+/* フォーム入力 */
+input[type="file"]{
+	-webkit-appearance:none;
+	appearance:none;
+}
+
+/* ビデオ（カメラ）領域のスタイル */
+video{
+	width:100%;
+	max-height:60vh;
+	background:#000;
+	border-radius:8px;
+	margin-bottom:12px;
+}
+.face-controls{display:flex;flex-direction:column;gap:10px}
+.face-controls button{
+	padding:12px 16px;
+	border-radius:8px;
+	border:1px solid #ddd;
+	background:#fff;
+	font-size:14px;
+	min-height:44px;
+	cursor:pointer;
+}
+
+@media(min-width:640px){
+	.face-controls{flex-direction:row}
+	.face-controls button{flex:1}
+}
+
+/* クローゼットのグリッド表示 */
+.closet-controls{margin-bottom:16px}
+.closet-controls input{
+	width:100%;
+	padding:10px;
+	border:2px dashed #ddd;
+	border-radius:8px;
+	cursor:pointer;
+}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
+.grid img{width:100%;border-radius:8px;object-fit:cover;aspect-ratio:1}
+
+@media(min-width:640px){
+	.grid{grid-template-columns:repeat(4,1fr)}
+}
+
+@media(min-width:1024px){
+	.grid{grid-template-columns:repeat(6,1fr)}
+}
 
 
