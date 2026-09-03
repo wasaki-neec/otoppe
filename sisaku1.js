@@ -5,7 +5,7 @@
 		・UI初期化とイベント登録
 		・位置情報からの天気取得（Open-Meteo）
 		・気分（ムード）選択の保存
-		・カメラ起動 / 撮影（簡易顔タイプ判定：縦横比で判断）
+		・カメラ起動 / 撮影（MediaPipe Face Landmarkerで判定）
 		・クローゼット画像のローカル保存（localStorage）と表示
 		・登録画像からの簡易コーデ提案
 */
@@ -35,6 +35,11 @@ function initUI(){
 	document.getElementById('startCamera').addEventListener('click', startCamera);
 	document.getElementById('stopCamera').addEventListener('click', stopCamera);
 	document.getElementById('captureFace').addEventListener('click', captureFace);
+	document.getElementById('faceImage').addEventListener('change', event=>{
+		const file = event.target.files && event.target.files[0];
+		if(file) analyzeFaceImage(file);
+		event.target.value = '';
+	});
 
 	// クローゼット画像の追加（ファイル入力）
 	document.getElementById('addCloth').addEventListener('change', e=>{
@@ -91,13 +96,68 @@ function selectMood(btn){
 }
 
 
-// --- カメラ / 顔撮影（簡易実装） ---
-// 注意: 本プロトタイプは顔検出ライブラリを入れていないため、
-// 簡易的にキャンバスの縦横比で顔タイプを判定するダミー実装です。
+// --- カメラ / 顔撮影（MediaPipe Face Landmarker） ---
+const faceLandmarkerModelUrl = './models/face_landmarker.task';
+const faceLandmarkerModuleUrl = './vendor/tasks-vision.mjs';
+const faceLandmarkerWasmUrl = './vendor/wasm';
 let stream = null;
+let faceLandmarker = null;
+
+function distanceBetween(firstPoint, secondPoint){
+	const x = firstPoint.x - secondPoint.x;
+	const y = firstPoint.y - secondPoint.y;
+	return Math.hypot(x, y);
+}
+
+function getFaceFeatures(landmarks){
+	const faceHeight = distanceBetween(landmarks[10], landmarks[152]);
+	const faceWidth = distanceBetween(landmarks[234], landmarks[454]);
+	const leftEyeWidth = distanceBetween(landmarks[33], landmarks[133]);
+	const rightEyeWidth = distanceBetween(landmarks[362], landmarks[263]);
+	const eyeDistance = distanceBetween(landmarks[133], landmarks[362]);
+	const mouthWidth = distanceBetween(landmarks[61], landmarks[291]);
+	const averageEyeWidth = (leftEyeWidth + rightEyeWidth) / 2;
+
+	return {
+		faceRatio:faceHeight / faceWidth,
+		eyeSize:averageEyeWidth / faceWidth,
+		eyeDistance:eyeDistance / faceWidth,
+		mouthWidth:mouthWidth / faceWidth
+	};
+}
+
+function classifyFace(features){
+	const isLongFace = features.faceRatio >= 1.25;
+	const hasLargeEyes = features.eyeSize >= 0.19;
+	const hasWideEyeDistance = features.eyeDistance >= 0.28;
+	const hasSmallMouth = features.mouthWidth < 0.34;
+
+	if(hasLargeEyes && hasWideEyeDistance && hasSmallMouth) return '猫顔（推定）';
+	if(hasLargeEyes && !isLongFace) return 'うさぎ顔（推定）';
+	if(isLongFace) return '大人顔（推定）';
+	return '標準タイプ（推定）';
+}
+
+async function getFaceLandmarker(){
+	if(faceLandmarker) return faceLandmarker;
+	const vision = await import(faceLandmarkerModuleUrl);
+	const filesetResolver = await vision.FilesetResolver.forVisionTasks(faceLandmarkerWasmUrl);
+	faceLandmarker = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
+		baseOptions:{modelAssetPath:faceLandmarkerModelUrl},
+		outputFaceBlendshapes:true,
+		outputFacialTransformationMatrixes:true,
+		numFaces:1
+	});
+	return faceLandmarker;
+}
+
 async function startCamera(){
 	const video = document.getElementById('camera');
 	if(stream) return;
+	if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+		document.getElementById('faceResult').textContent = 'この場所ではカメラを使えません。写真から判定してください';
+		return;
+	}
 	try{
 		stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false});
 		video.srcObject = stream;
@@ -112,25 +172,75 @@ function stopCamera(){
 	document.getElementById('faceResult').textContent = 'カメラ停止';
 }
 
-// captureFace: ビデオフレームをキャンバスに描画してDataURLを保存
-// その後、簡易判定（縦横比）で顔タイプを localStorage に保存
-function captureFace(){
-	const video = document.getElementById('camera');
-	if(!video || !video.videoWidth) return alert('カメラを起動してください');
-	const c = document.getElementById('faceCanvas');
-	c.width = video.videoWidth; c.height = video.videoHeight;
-	const ctx = c.getContext('2d');
-	ctx.drawImage(video,0,0,c.width,c.height);
-	const data = c.toDataURL('image/png');
+async function analyzeFaceCanvas(canvas){
+	const data = canvas.toDataURL('image/png');
 	// 顔写真を localStorage に保存（サンプル用途）
 	localStorage.setItem('facePhoto', data);
-	// 簡易判定（顔縦横比に基づくダミー判定）
-	const ratio = c.height / c.width;
-	let faceType = '標準タイプ';
-	if(ratio > 1.05) faceType = '縦長タイプ';
-	else if(ratio < 0.9) faceType = '横広タイプ';
-	localStorage.setItem('faceType', faceType);
-	document.getElementById('faceResult').textContent = `判定結果：${faceType}`;
+
+	const resultEl = document.getElementById('faceResult');
+	resultEl.textContent = '顔を解析中…';
+	try{
+		const landmarker = await getFaceLandmarker();
+		const detectionResult = landmarker.detect(c);
+		if(!detectionResult.faceLandmarks || detectionResult.faceLandmarks.length === 0){
+			localStorage.removeItem('faceType');
+			document.getElementById('faceMetrics').textContent = '';
+			resultEl.textContent = '顔を検出できませんでした。正面を向いて撮影してください';
+			return;
+		}
+
+		const landmarks = detectionResult.faceLandmarks[0];
+		const firstLandmark = landmarks[0];
+		const features = getFaceFeatures(landmarks);
+		const faceType = classifyFace(features);
+		const landmarkData = {
+			x:firstLandmark.x,
+			y:firstLandmark.y,
+			z:firstLandmark.z,
+			features,
+			blendshapes:detectionResult.faceBlendshapes?.[0]?.categories || [],
+			transformationMatrix:detectionResult.facialTransformationMatrixes?.[0]?.data || []
+		};
+		localStorage.setItem('faceLandmark', JSON.stringify(landmarkData));
+		localStorage.setItem('faceType', faceType);
+		resultEl.textContent = `判定結果：${faceType}`;
+		document.getElementById('faceMetrics').textContent = [
+			`顔の縦横比: ${features.faceRatio.toFixed(2)}`,
+			`目の大きさ: ${(features.eyeSize * 100).toFixed(1)}%`,
+			`目の間隔: ${(features.eyeDistance * 100).toFixed(1)}%`,
+			`口の幅: ${(features.mouthWidth * 100).toFixed(1)}%`
+		].join(' / ');
+	}catch(error){
+		console.error('Face Landmarkerの初期化または検出に失敗しました', error);
+		resultEl.textContent = '顔判別の準備に失敗しました。modelsとvendorの配置を確認してください';
+	}
+}
+
+// captureFace: ビデオフレームを検出し、最初の顔の特徴点を保存
+async function captureFace(){
+	const video = document.getElementById('camera');
+	if(!video || !video.videoWidth) return alert('カメラを起動してください');
+	const canvas = document.getElementById('faceCanvas');
+	canvas.width = video.videoWidth;
+	canvas.height = video.videoHeight;
+	canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+	await analyzeFaceCanvas(canvas);
+}
+
+function analyzeFaceImage(file){
+	const image = new Image();
+	image.onload = async ()=>{
+		const canvas = document.getElementById('faceCanvas');
+		canvas.width = image.naturalWidth;
+		canvas.height = image.naturalHeight;
+		canvas.getContext('2d').drawImage(image,0,0);
+		await analyzeFaceCanvas(canvas);
+		URL.revokeObjectURL(image.src);
+	};
+	image.onerror = ()=>{
+		document.getElementById('faceResult').textContent = '画像を読み込めませんでした';
+	};
+	image.src = URL.createObjectURL(file);
 }
 
 

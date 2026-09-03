@@ -60,8 +60,11 @@
 				<button id="startCamera">カメラ開始</button>
 				<button id="captureFace">撮影して判定</button>
 				<button id="stopCamera">カメラ停止</button>
+				<label class="face-upload">写真から判定<input id="faceImage" type="file" accept="image/*"></label>
 			</div>
 			<div id="faceResult">判定結果：未実行</div>
+			<div id="faceMetrics" aria-live="polite"></div>
+			<small id="faceNotice">カメラまたは端末の写真から判定できます。判定処理は端末内で行われます。</small>
 		</section>
 
 		<!-- クローゼット（手持ち服の登録）
