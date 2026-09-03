@@ -103,11 +103,14 @@ const faceLandmarkerWasmUrl = './vendor/wasm';
 let stream = null;
 let faceLandmarker = null;
 
+<<<<<<< HEAD:js/sisaku1.js
 function showFaceDiagnostic(message){
 	const noticeEl = document.getElementById('faceNotice');
 	if(noticeEl) noticeEl.textContent = message;
 }
 
+=======
+>>>>>>> 987886a (four-okame):sisaku1.js
 function distanceBetween(firstPoint, secondPoint){
 	const x = firstPoint.x - secondPoint.x;
 	const y = firstPoint.y - secondPoint.y;
@@ -145,6 +148,7 @@ function classifyFace(features){
 
 async function getFaceLandmarker(){
 	if(faceLandmarker) return faceLandmarker;
+<<<<<<< HEAD:js/sisaku1.js
 	if(location.protocol === 'file:'){
 		throw new Error('file://で開かれています。ブラウザの制限により、ローカルのJS・WASM・モデルを読み込めません。localhostまたはHTTPSで開いてください');
 	}
@@ -170,6 +174,16 @@ async function getFaceLandmarker(){
 	}catch(error){
 		throw new Error(`顔モデル読込失敗: ${faceLandmarkerModelUrl} (${error.message})`);
 	}
+=======
+	const vision = await import(faceLandmarkerModuleUrl);
+	const filesetResolver = await vision.FilesetResolver.forVisionTasks(faceLandmarkerWasmUrl);
+	faceLandmarker = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
+		baseOptions:{modelAssetPath:faceLandmarkerModelUrl},
+		outputFaceBlendshapes:true,
+		outputFacialTransformationMatrixes:true,
+		numFaces:1
+	});
+>>>>>>> 987886a (four-okame):sisaku1.js
 	return faceLandmarker;
 }
 
@@ -203,7 +217,11 @@ async function analyzeFaceCanvas(canvas){
 	resultEl.textContent = '顔を解析中…';
 	try{
 		const landmarker = await getFaceLandmarker();
+<<<<<<< HEAD:js/sisaku1.js
 		const detectionResult = landmarker.detect(canvas);
+=======
+		const detectionResult = landmarker.detect(c);
+>>>>>>> 987886a (four-okame):sisaku1.js
 		if(!detectionResult.faceLandmarks || detectionResult.faceLandmarks.length === 0){
 			localStorage.removeItem('faceType');
 			document.getElementById('faceMetrics').textContent = '';
@@ -234,9 +252,13 @@ async function analyzeFaceCanvas(canvas){
 		].join(' / ');
 	}catch(error){
 		console.error('Face Landmarkerの初期化または検出に失敗しました', error);
+<<<<<<< HEAD:js/sisaku1.js
 		const detail = error instanceof Error ? error.message : String(error);
 		resultEl.textContent = '顔判別の準備に失敗しました';
 		showFaceDiagnostic(`原因: ${detail} 実行元: ${location.href}`);
+=======
+		resultEl.textContent = '顔判別の準備に失敗しました。modelsとvendorの配置を確認してください';
+>>>>>>> 987886a (four-okame):sisaku1.js
 	}
 }
 
