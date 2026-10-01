@@ -1,0 +1,489 @@
+/*
+	sisaku1.js
+	- プロトタイプの振る舞いを実装する軽量スクリプト
+	- 以下の機能をサポートします:
+		・UI初期化とイベント登録
+		・位置情報からの天気取得（Open-Meteo）
+		・気分（ムード）選択の保存
+		・カメラ起動 / 撮影（MediaPipe Face Landmarkerで判定）
+		・クローゼット画像のローカル保存（localStorage）と表示
+		・登録画像からの簡易コーデ提案
+*/
+
+// DOM が準備できたら初期化処理を実行
+document.addEventListener('DOMContentLoaded',()=>{
+	initUI();      // ボタンや入力にイベントを割り当て
+	loadCloset();   // 保存済みのクローゼット画像を読み込み表示
+	updateWeather();// 現在の気候情報を取得して表示
+});
+
+
+// --- UI 初期化: ボタンや入力フォームにイベントハンドラを登録 ---
+function initUI(){
+	document.getElementById('refreshWeather').addEventListener('click', updateWeather);
+	// ナビボタンは対応セクションを表示するだけ（簡易なルーティング）
+	document.getElementById('toFace').addEventListener('click',()=>showSection('faceSection'));
+	document.getElementById('toCloset').addEventListener('click',()=>showSection('closetSection'));
+	document.getElementById('toPropose').addEventListener('click',()=>showSection('proposeSection'));
+
+	// ムードボタン: 選択状態を切り替え、localStorage に保存
+	Array.from(document.querySelectorAll('#moodButtons button')).forEach(btn=>{
+		btn.addEventListener('click',()=>{selectMood(btn)});
+	});
+
+	// カメラ操作ボタン
+	document.getElementById('startCamera').addEventListener('click', startCamera);
+	document.getElementById('stopCamera').addEventListener('click', stopCamera);
+	document.getElementById('captureFace').addEventListener('click', captureFace);
+	document.getElementById('faceImage').addEventListener('change', event=>{
+		const file = event.target.files && event.target.files[0];
+		if(file) analyzeFaceImage(file);
+		event.target.value = '';
+	});
+
+	// クローゼットへの服登録
+	document.getElementById('closetForm').addEventListener('submit', event=>{
+		event.preventDefault();
+		const file = document.getElementById('addCloth').files[0];
+		if(file) addClosetItem(file);
+	});
+
+	// コーデ提案ボタン
+	document.getElementById('makeProposal').addEventListener('click', makeProposal);
+}
+
+
+// showSection: 指定したセクションだけ表示し、他を非表示にするユーティリティ
+function showSection(id){
+	['faceSection','closetSection','proposeSection'].forEach(s=>{
+		document.getElementById(s).classList.toggle('hidden', s!==id);
+	});
+}
+
+
+// --- 天気取得（Open-Meteo を使用：APIキー不要） ---
+// 位置情報を取得して Open-Meteo の current_weather を参照し、結果を表示する
+async function updateWeather(){
+	const el = document.getElementById('weather');
+	el.textContent = '取得中… 位置情報の許可を求めます';
+	if(navigator.geolocation){
+		navigator.geolocation.getCurrentPosition(async pos=>{
+			const lat = pos.coords.latitude.toFixed(4);
+			const lon = pos.coords.longitude.toFixed(4);
+			try{
+				const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+				const r = await fetch(url);
+				const j = await r.json();
+				if(j && j.current_weather){
+					const w = j.current_weather;
+					// 簡易表示: 風速と気温を出力
+					el.innerHTML = `現在: 風速 ${w.windspeed}m/s / 気温 ${w.temperature}°C (時刻 ${w.time})`;
+				} else el.textContent = '気候情報を取得できませんでした';
+			}catch(e){ el.textContent = '気候取得でエラーが発生しました'; }
+		}, err=>{ el.textContent = '位置情報が許可されていません。手動で再試行してください'; });
+	} else {
+		el.textContent = '位置情報が利用できません';
+	}
+}
+
+
+// --- 気分（ムード）選択 ---
+// ボタンの見た目を切り替え、選択した値を localStorage に保存
+function selectMood(btn){
+	document.querySelectorAll('#moodButtons button').forEach(b=>b.classList.remove('active'));
+	btn.classList.add('active');
+	localStorage.setItem('selectedMood', btn.dataset.mood);
+}
+
+
+// --- カメラ / 顔撮影（MediaPipe Face Landmarker） ---
+const faceLandmarkerModelUrl = './models/face_landmarker.task';
+const faceLandmarkerModuleUrl = './vendor/tasks-vision.mjs';
+const faceLandmarkerWasmUrl = './vendor/wasm';
+let stream = null;
+let faceLandmarker = null;
+
+<<<<<<< HEAD
+<<<<<<< HEAD:js/sisaku1.js
+=======
+>>>>>>> d614a1b (five-okame)
+function showFaceDiagnostic(message){
+	const noticeEl = document.getElementById('faceNotice');
+	if(noticeEl) noticeEl.textContent = message;
+}
+
+<<<<<<< HEAD
+=======
+>>>>>>> 987886a (four-okame):sisaku1.js
+=======
+>>>>>>> d614a1b (five-okame)
+function distanceBetween(firstPoint, secondPoint){
+	const x = firstPoint.x - secondPoint.x;
+	const y = firstPoint.y - secondPoint.y;
+	return Math.hypot(x, y);
+}
+
+function getFaceFeatures(landmarks){
+	const faceHeight = distanceBetween(landmarks[10], landmarks[152]);
+	const faceWidth = distanceBetween(landmarks[234], landmarks[454]);
+	const leftEyeWidth = distanceBetween(landmarks[33], landmarks[133]);
+	const rightEyeWidth = distanceBetween(landmarks[362], landmarks[263]);
+	const eyeDistance = distanceBetween(landmarks[133], landmarks[362]);
+	const mouthWidth = distanceBetween(landmarks[61], landmarks[291]);
+	const averageEyeWidth = (leftEyeWidth + rightEyeWidth) / 2;
+
+	return {
+		faceRatio:faceHeight / faceWidth,
+		eyeSize:averageEyeWidth / faceWidth,
+		eyeDistance:eyeDistance / faceWidth,
+		mouthWidth:mouthWidth / faceWidth
+	};
+}
+
+function classifyFace(features){
+	const isLongFace = features.faceRatio >= 1.25;
+	const hasLargeEyes = features.eyeSize >= 0.19;
+	const hasWideEyeDistance = features.eyeDistance >= 0.28;
+	const hasSmallMouth = features.mouthWidth < 0.34;
+
+	if(hasLargeEyes && hasWideEyeDistance && hasSmallMouth) return '猫顔（推定）';
+	if(hasLargeEyes && !isLongFace) return 'うさぎ顔（推定）';
+	if(isLongFace) return '大人顔（推定）';
+	return '標準タイプ（推定）';
+}
+
+async function getFaceLandmarker(){
+	if(faceLandmarker) return faceLandmarker;
+<<<<<<< HEAD
+<<<<<<< HEAD:js/sisaku1.js
+=======
+>>>>>>> d614a1b (five-okame)
+	if(location.protocol === 'file:'){
+		throw new Error('file://で開かれています。ブラウザの制限により、ローカルのJS・WASM・モデルを読み込めません。localhostまたはHTTPSで開いてください');
+	}
+	let vision;
+	try{
+		vision = await import(faceLandmarkerModuleUrl);
+	}catch(error){
+		throw new Error(`MediaPipeモジュール読込失敗: ${faceLandmarkerModuleUrl} (${error.message})`);
+	}
+	let filesetResolver;
+	try{
+		filesetResolver = await vision.FilesetResolver.forVisionTasks(faceLandmarkerWasmUrl);
+	}catch(error){
+		throw new Error(`WASM読込失敗: ${faceLandmarkerWasmUrl} (${error.message})`);
+	}
+	try{
+		faceLandmarker = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
+			baseOptions:{modelAssetPath:faceLandmarkerModelUrl},
+			outputFaceBlendshapes:true,
+			outputFacialTransformationMatrixes:true,
+			numFaces:1
+		});
+	}catch(error){
+		throw new Error(`顔モデル読込失敗: ${faceLandmarkerModelUrl} (${error.message})`);
+	}
+<<<<<<< HEAD
+=======
+	const vision = await import(faceLandmarkerModuleUrl);
+	const filesetResolver = await vision.FilesetResolver.forVisionTasks(faceLandmarkerWasmUrl);
+	faceLandmarker = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
+		baseOptions:{modelAssetPath:faceLandmarkerModelUrl},
+		outputFaceBlendshapes:true,
+		outputFacialTransformationMatrixes:true,
+		numFaces:1
+	});
+>>>>>>> 987886a (four-okame):sisaku1.js
+=======
+>>>>>>> d614a1b (five-okame)
+	return faceLandmarker;
+}
+
+async function startCamera(){
+	const video = document.getElementById('camera');
+	if(stream) return;
+	if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+		document.getElementById('faceResult').textContent = 'この場所ではカメラを使えません。写真から判定してください';
+		return;
+	}
+	try{
+		stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false});
+		video.srcObject = stream;
+		document.getElementById('faceResult').textContent = 'カメラ起動中';
+	}catch(e){ alert('カメラを開始できませんでした: '+e.message); }
+}
+function stopCamera(){
+	if(!stream) return;
+	stream.getTracks().forEach(t=>t.stop());
+	stream = null;
+	document.getElementById('camera').srcObject = null;
+	document.getElementById('faceResult').textContent = 'カメラ停止';
+}
+
+async function analyzeFaceCanvas(canvas){
+	const data = canvas.toDataURL('image/png');
+	// 顔写真を localStorage に保存（サンプル用途）
+	localStorage.setItem('facePhoto', data);
+
+	const resultEl = document.getElementById('faceResult');
+	resultEl.textContent = '顔を解析中…';
+	try{
+		const landmarker = await getFaceLandmarker();
+<<<<<<< HEAD
+<<<<<<< HEAD:js/sisaku1.js
+		const detectionResult = landmarker.detect(canvas);
+=======
+		const detectionResult = landmarker.detect(c);
+>>>>>>> 987886a (four-okame):sisaku1.js
+=======
+		const detectionResult = landmarker.detect(canvas);
+>>>>>>> d614a1b (five-okame)
+		if(!detectionResult.faceLandmarks || detectionResult.faceLandmarks.length === 0){
+			localStorage.removeItem('faceType');
+			document.getElementById('faceMetrics').textContent = '';
+			resultEl.textContent = '顔を検出できませんでした。正面を向いて撮影してください';
+			return;
+		}
+
+		const landmarks = detectionResult.faceLandmarks[0];
+		const firstLandmark = landmarks[0];
+		const features = getFaceFeatures(landmarks);
+		const faceType = classifyFace(features);
+		const landmarkData = {
+			x:firstLandmark.x,
+			y:firstLandmark.y,
+			z:firstLandmark.z,
+			features,
+			blendshapes:detectionResult.faceBlendshapes?.[0]?.categories || [],
+			transformationMatrix:detectionResult.facialTransformationMatrixes?.[0]?.data || []
+		};
+		localStorage.setItem('faceLandmark', JSON.stringify(landmarkData));
+		localStorage.setItem('faceType', faceType);
+		resultEl.textContent = `判定結果：${faceType}`;
+		document.getElementById('faceMetrics').textContent = [
+			`顔の縦横比: ${features.faceRatio.toFixed(2)}`,
+			`目の大きさ: ${(features.eyeSize * 100).toFixed(1)}%`,
+			`目の間隔: ${(features.eyeDistance * 100).toFixed(1)}%`,
+			`口の幅: ${(features.mouthWidth * 100).toFixed(1)}%`
+		].join(' / ');
+	}catch(error){
+		console.error('Face Landmarkerの初期化または検出に失敗しました', error);
+<<<<<<< HEAD
+<<<<<<< HEAD:js/sisaku1.js
+		const detail = error instanceof Error ? error.message : String(error);
+		resultEl.textContent = '顔判別の準備に失敗しました';
+		showFaceDiagnostic(`原因: ${detail} 実行元: ${location.href}`);
+=======
+		resultEl.textContent = '顔判別の準備に失敗しました。modelsとvendorの配置を確認してください';
+>>>>>>> 987886a (four-okame):sisaku1.js
+=======
+		const detail = error instanceof Error ? error.message : String(error);
+		resultEl.textContent = '顔判別の準備に失敗しました';
+		showFaceDiagnostic(`原因: ${detail} 実行元: ${location.href}`);
+>>>>>>> d614a1b (five-okame)
+	}
+}
+
+// captureFace: ビデオフレームを検出し、最初の顔の特徴点を保存
+async function captureFace(){
+	const video = document.getElementById('camera');
+	if(!video || !video.videoWidth) return alert('カメラを起動してください');
+	const canvas = document.getElementById('faceCanvas');
+	canvas.width = video.videoWidth;
+	canvas.height = video.videoHeight;
+	canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+	await analyzeFaceCanvas(canvas);
+}
+
+function analyzeFaceImage(file){
+	const image = new Image();
+	image.onload = async ()=>{
+		const canvas = document.getElementById('faceCanvas');
+		canvas.width = image.naturalWidth;
+		canvas.height = image.naturalHeight;
+		canvas.getContext('2d').drawImage(image,0,0);
+		await analyzeFaceCanvas(canvas);
+		URL.revokeObjectURL(image.src);
+	};
+	image.onerror = ()=>{
+		document.getElementById('faceResult').textContent = '画像を読み込めませんでした';
+	};
+	image.src = URL.createObjectURL(file);
+}
+
+
+// --- クローゼット（localStorage に画像を保存して一覧表示） ---
+function loadCloset(){
+	const arr = getClosetItems();
+	const grid = document.getElementById('closetGrid');
+	grid.innerHTML = '';
+	if(arr.length===0){
+		grid.textContent = 'まだ服が登録されていません。写真と服の情報を入力してください。';
+		return;
+	}
+	arr.forEach(item=>{
+		const img = document.createElement('img');
+		img.src = item.image;
+		img.alt = item.name;
+		const wrapper = document.createElement('article');
+		wrapper.className = 'closet-item';
+		const name = document.createElement('h3');
+		name.textContent = item.name;
+		const details = document.createElement('p');
+		details.textContent = `${item.category}・${item.season}・${item.scene}`;
+		const actions = document.createElement('div');
+		actions.className = 'closet-item-actions';
+		const editButton = document.createElement('button');
+		editButton.type = 'button';
+		editButton.textContent = '編集';
+		editButton.addEventListener('click', ()=>{
+			wrapper.replaceChildren(img, createClosetEditForm(item));
+		});
+		const removeButton = document.createElement('button');
+		removeButton.type = 'button';
+		removeButton.textContent = '削除';
+		removeButton.addEventListener('click', ()=>removeClosetItem(item.id));
+		actions.append(editButton, removeButton);
+		wrapper.append(img, name, details, actions);
+		grid.appendChild(wrapper);
+	});
+}
+
+function createClosetEditForm(item){
+	const form = document.createElement('form');
+	form.className = 'closet-edit-form';
+	const nameInput = document.createElement('input');
+	nameInput.type = 'text';
+	nameInput.maxLength = 40;
+	nameInput.value = item.name;
+	nameInput.required = true;
+	const categorySelect = document.getElementById('clothCategory').cloneNode(true);
+	categorySelect.value = item.category;
+	const seasonSelect = document.getElementById('clothSeason').cloneNode(true);
+	seasonSelect.value = item.season;
+	const sceneSelect = document.getElementById('clothScene').cloneNode(true);
+	sceneSelect.value = item.scene;
+	const fields = [
+		['服の名前', nameInput],
+		['カテゴリ', categorySelect],
+		['季節', seasonSelect],
+		['シーン', sceneSelect]
+	];
+	fields.forEach(([labelText, control])=>{
+		const label = document.createElement('label');
+		label.append(labelText, control);
+		form.appendChild(label);
+	});
+	const actions = document.createElement('div');
+	actions.className = 'closet-edit-actions';
+	const saveButton = document.createElement('button');
+	saveButton.type = 'submit';
+	saveButton.textContent = '変更を保存';
+	const cancelButton = document.createElement('button');
+	cancelButton.type = 'button';
+	cancelButton.textContent = 'キャンセル';
+	cancelButton.addEventListener('click', loadCloset);
+	actions.append(saveButton, cancelButton);
+	form.appendChild(actions);
+	form.addEventListener('submit', event=>{
+		event.preventDefault();
+		const items = getClosetItems().map(existing=>existing.id === item.id ? {
+			...existing,
+			name:nameInput.value.trim(),
+			category:categorySelect.value,
+			season:seasonSelect.value,
+			scene:sceneSelect.value
+		} : existing);
+		try{
+			localStorage.setItem('closetItems', JSON.stringify(items));
+			loadCloset();
+			document.getElementById('closetStatus').textContent = '変更を保存しました。';
+		}catch(error){
+			document.getElementById('closetStatus').textContent = '変更を保存できませんでした。';
+		}
+	});
+	return form;
+}
+
+function getClosetItems(){
+	const raw = localStorage.getItem('closetItems');
+	if(!raw) return [];
+	try{
+		const items = JSON.parse(raw);
+		if(!Array.isArray(items)) return [];
+		return items.map((item, index)=>{
+			if(typeof item === 'string'){
+				return {id:`legacy-${index}`, name:'登録した服', category:'未分類', season:'通年', scene:'指定なし', image:item};
+			}
+			return {...item, id:item.id || `closet-${index}`, image:item.image || item.src || ''};
+		}).filter(item=>item.image);
+	}catch(error){
+		console.error('クローゼットのデータを読み込めませんでした', error);
+		return [];
+	}
+}
+
+// 画像と入力情報を localStorage に保存し、最大 50 件まで保持
+function addClosetItem(file){
+	const status = document.getElementById('closetStatus');
+	if(!file.type.startsWith('image/')){
+		status.textContent = '画像ファイルを選択してください。';
+		return;
+	}
+	const reader = new FileReader();
+	reader.onload = ()=>{
+		const item = {
+			id:`closet-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+			name:document.getElementById('clothName').value.trim(),
+			category:document.getElementById('clothCategory').value,
+			season:document.getElementById('clothSeason').value,
+			scene:document.getElementById('clothScene').value,
+			image:reader.result
+		};
+		try{
+			const items = getClosetItems();
+			items.unshift(item);
+			localStorage.setItem('closetItems', JSON.stringify(items.slice(0,50)));
+			document.getElementById('closetForm').reset();
+			status.textContent = '服を登録しました。';
+			loadCloset();
+		}catch(error){
+			status.textContent = '保存できませんでした。画像のサイズを小さくして再度お試しください。';
+		}
+	};
+	reader.onerror = ()=>{ status.textContent = '画像を読み込めませんでした。'; };
+	reader.readAsDataURL(file);
+}
+
+function removeClosetItem(id){
+	const items = getClosetItems().filter(item=>item.id !== id);
+	localStorage.setItem('closetItems', JSON.stringify(items));
+	loadCloset();
+}
+
+
+// --- コーデ提案（簡易） ---
+// 登録済みの服画像からランダムに2点選び、提案と簡単なアドバイスを表示する
+function makeProposal(){
+	const arr = getClosetItems();
+	const proposalEl = document.getElementById('proposal');
+	const adviceEl = document.getElementById('advice');
+	proposalEl.innerHTML = '';
+	adviceEl.textContent = '';
+	if(arr.length===0){ adviceEl.textContent = 'クローゼットが空です。服を登録してください。'; return; }
+	// 簡易: ランダムに2点選ぶ
+	const indices = new Set();
+	while(indices.size < Math.min(2, arr.length)) indices.add(Math.floor(Math.random()*arr.length));
+	indices.forEach(i=>{
+		const img = document.createElement('img');
+		img.src = arr[i].image;
+		img.alt = arr[i].name;
+		proposalEl.appendChild(img);
+	});
+	// アドバイス生成（天気・ムード・顔タイプから簡易メッセージ）
+	const mood = localStorage.getItem('selectedMood') || '指定なし';
+	const faceType = localStorage.getItem('faceType') || '未登録';
+	adviceEl.textContent = `${mood}向け／顔タイプ: ${faceType} — シンプルに組み合わせてみました。実際の気温や気分に合わせ微調整をしてください。`;
+}
+
+

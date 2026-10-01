@@ -6,7 +6,7 @@
 	<meta name="theme-color" content="#ffffff" />
 	<meta name="description" content="フィーリングコレクション - あなたの気分や顔タイプに合わせたコーディネート提案アプリ" />
 	<title>フィーリングコレクション - プロトタイプ</title>
-	<link rel="stylesheet" href="sisaku1.css">
+	<link rel="stylesheet" href="css/sisaku1.css">
 </head>
 <body>
 	<!-- サイトヘッダー：アプリ名表示 -->
@@ -33,6 +33,8 @@
 				<button data-mood="休日">休日</button>
 				<button data-mood="デート">デート</button>
 				<button data-mood="リラックス">リラックス</button>
+				<button data-mood="オフィスカジュアル">オフィスカジュアル</button>
+				<button data-mood="フォーマル">フォーマル</button>
 			</div>
 		</section>
 
@@ -58,17 +60,66 @@
 				<button id="startCamera">カメラ開始</button>
 				<button id="captureFace">撮影して判定</button>
 				<button id="stopCamera">カメラ停止</button>
+				<label class="face-upload">写真から判定<input id="faceImage" type="file" accept="image/*"></label>
 			</div>
 			<div id="faceResult">判定結果：未実行</div>
+			<div id="faceMetrics" aria-live="polite"></div>
+			<small id="faceNotice">カメラまたは端末の写真から判定できます。判定処理は端末内で行われます。</small>
 		</section>
 
 		<!-- クローゼット（手持ち服の登録）
 				 - 画像ファイルを選択してローカルストレージに保存し、グリッドで表示 -->
 		<section id="closetSection" class="card hidden">
 			<h2>クローゼット（手持ち服）</h2>
-			<div class="closet-controls">
-				<input id="addCloth" type="file" accept="image/*">
-			</div>
+			<form id="closetForm" class="closet-form">
+				<label class="closet-image-field" for="addCloth">服の写真
+					<input id="addCloth" type="file" accept="image/*" required>
+				</label>
+				<label>服の名前
+					<input id="clothName" type="text" maxlength="40" placeholder="例：白いシャツ" required>
+				</label>
+				<label>カテゴリ
+					<select id="clothCategory" required>
+						<option value="トップス">トップス</option>
+						<option value="ボトムス">ボトムス</option>
+						<option value="スカート">スカート</option>
+						<option value="ワンピース">ワンピース</option>
+						<option value="アウター">アウター</option>
+						<option value="靴・小物">靴・小物</option>
+						<option value="顔周りの小物">顔周りの小物</option>
+					</select>
+				</label>
+				<label>季節
+					<select id="clothSeason" required>
+						<option value="通年">通年</option>
+						<option value="春">春</option>
+						<option value="夏">夏</option>
+						<option value="秋">秋</option>
+						<option value="冬">冬</option>
+						<option value="春夏">春夏</option>
+						<option value="春秋">春秋</option>
+						<option value="春冬">春冬</option>
+						<option value="夏秋">夏秋</option>
+						<option value="夏冬">夏冬</option>
+						<option value="秋冬">秋冬</option>
+						<option value="春夏秋">春夏秋</option>
+						<option value="春夏冬">春夏冬</option>
+						<option value="春秋冬">春秋冬</option>
+						<option value="夏秋冬">夏秋冬</option>
+					</select>
+				</label>
+				<label>シーン
+					<select id="clothScene" required>
+						<option value="普段着">普段着</option>
+						<option value="仕事">仕事</option>
+						<option value="休日">休日</option>
+						<option value="デート">デート</option>
+						<option value="フォーマル">フォーマル</option>
+					</select>
+				</label>
+				<button type="submit">服を登録</button>
+				<p id="closetStatus" class="closet-status" aria-live="polite"></p>
+			</form>
 			<div id="closetGrid" class="grid"></div>
 		</section>
 
@@ -84,7 +135,7 @@
 	</main>
 
 	<!-- プロトタイプ用のJS: 天気取得、気分選択、カメラ、クローゼット、提案処理 -->
-	<script src="sisaku1.js"></script>
+	<script src="js/sisaku1.js"></script>
 </body>
 </html>
 
