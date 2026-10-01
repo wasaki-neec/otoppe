@@ -41,11 +41,11 @@ function initUI(){
 		event.target.value = '';
 	});
 
-	// クローゼット画像の追加（ファイル入力）
-	document.getElementById('addCloth').addEventListener('change', e=>{
-		const f = e.target.files && e.target.files[0];
-		if(f) addClosetItem(f);
-		e.target.value = '';
+	// クローゼットへの服登録
+	document.getElementById('closetForm').addEventListener('submit', event=>{
+		event.preventDefault();
+		const file = document.getElementById('addCloth').files[0];
+		if(file) addClosetItem(file);
 	});
 
 	// コーデ提案ボタン
@@ -270,40 +270,158 @@ function analyzeFaceImage(file){
 
 // --- クローゼット（localStorage に画像を保存して一覧表示） ---
 function loadCloset(){
-	const raw = localStorage.getItem('closetItems');
-	const arr = raw ? JSON.parse(raw) : [];
+	const arr = getClosetItems();
 	const grid = document.getElementById('closetGrid');
 	grid.innerHTML = '';
-	if(arr.length===0) grid.innerHTML = '<div style="color:#999">まだ服が登録されていません。画像を追加してください。</div>';
-	arr.forEach((src,idx)=>{
-		const img = document.createElement('img'); img.src = src;
-		img.alt = `closet-${idx}`;
-		const wrapper = document.createElement('div');
-		wrapper.appendChild(img);
+	if(arr.length===0){
+		grid.textContent = 'まだ服が登録されていません。写真と服の情報を入力してください。';
+		return;
+	}
+	arr.forEach(item=>{
+		const img = document.createElement('img');
+		img.src = item.image;
+		img.alt = item.name;
+		const wrapper = document.createElement('article');
+		wrapper.className = 'closet-item';
+		const name = document.createElement('h3');
+		name.textContent = item.name;
+		const details = document.createElement('p');
+		details.textContent = `${item.category}・${item.season}・${item.scene}`;
+		const actions = document.createElement('div');
+		actions.className = 'closet-item-actions';
+		const editButton = document.createElement('button');
+		editButton.type = 'button';
+		editButton.textContent = '編集';
+		editButton.addEventListener('click', ()=>{
+			wrapper.replaceChildren(img, createClosetEditForm(item));
+		});
+		const removeButton = document.createElement('button');
+		removeButton.type = 'button';
+		removeButton.textContent = '削除';
+		removeButton.addEventListener('click', ()=>removeClosetItem(item.id));
+		actions.append(editButton, removeButton);
+		wrapper.append(img, name, details, actions);
 		grid.appendChild(wrapper);
 	});
 }
 
-// addClosetItem: File オブジェクトを受け取り DataURL に変換して保存
-// 最大 50 件まで保持する簡易実装
+function createClosetEditForm(item){
+	const form = document.createElement('form');
+	form.className = 'closet-edit-form';
+	const nameInput = document.createElement('input');
+	nameInput.type = 'text';
+	nameInput.maxLength = 40;
+	nameInput.value = item.name;
+	nameInput.required = true;
+	const categorySelect = document.getElementById('clothCategory').cloneNode(true);
+	categorySelect.value = item.category;
+	const seasonSelect = document.getElementById('clothSeason').cloneNode(true);
+	seasonSelect.value = item.season;
+	const sceneSelect = document.getElementById('clothScene').cloneNode(true);
+	sceneSelect.value = item.scene;
+	const fields = [
+		['服の名前', nameInput],
+		['カテゴリ', categorySelect],
+		['季節', seasonSelect],
+		['シーン', sceneSelect]
+	];
+	fields.forEach(([labelText, control])=>{
+		const label = document.createElement('label');
+		label.append(labelText, control);
+		form.appendChild(label);
+	});
+	const actions = document.createElement('div');
+	actions.className = 'closet-edit-actions';
+	const saveButton = document.createElement('button');
+	saveButton.type = 'submit';
+	saveButton.textContent = '変更を保存';
+	const cancelButton = document.createElement('button');
+	cancelButton.type = 'button';
+	cancelButton.textContent = 'キャンセル';
+	cancelButton.addEventListener('click', loadCloset);
+	actions.append(saveButton, cancelButton);
+	form.appendChild(actions);
+	form.addEventListener('submit', event=>{
+		event.preventDefault();
+		const items = getClosetItems().map(existing=>existing.id === item.id ? {
+			...existing,
+			name:nameInput.value.trim(),
+			category:categorySelect.value,
+			season:seasonSelect.value,
+			scene:sceneSelect.value
+		} : existing);
+		try{
+			localStorage.setItem('closetItems', JSON.stringify(items));
+			loadCloset();
+			document.getElementById('closetStatus').textContent = '変更を保存しました。';
+		}catch(error){
+			document.getElementById('closetStatus').textContent = '変更を保存できませんでした。';
+		}
+	});
+	return form;
+}
+
+function getClosetItems(){
+	const raw = localStorage.getItem('closetItems');
+	if(!raw) return [];
+	try{
+		const items = JSON.parse(raw);
+		if(!Array.isArray(items)) return [];
+		return items.map((item, index)=>{
+			if(typeof item === 'string'){
+				return {id:`legacy-${index}`, name:'登録した服', category:'未分類', season:'通年', scene:'指定なし', image:item};
+			}
+			return {...item, id:item.id || `closet-${index}`, image:item.image || item.src || ''};
+		}).filter(item=>item.image);
+	}catch(error){
+		console.error('クローゼットのデータを読み込めませんでした', error);
+		return [];
+	}
+}
+
+// 画像と入力情報を localStorage に保存し、最大 50 件まで保持
 function addClosetItem(file){
+	const status = document.getElementById('closetStatus');
+	if(!file.type.startsWith('image/')){
+		status.textContent = '画像ファイルを選択してください。';
+		return;
+	}
 	const reader = new FileReader();
 	reader.onload = ()=>{
-		const raw = localStorage.getItem('closetItems');
-		const arr = raw ? JSON.parse(raw) : [];
-		arr.unshift(reader.result);
-		localStorage.setItem('closetItems', JSON.stringify(arr.slice(0,50)));
-		loadCloset();
+		const item = {
+			id:`closet-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+			name:document.getElementById('clothName').value.trim(),
+			category:document.getElementById('clothCategory').value,
+			season:document.getElementById('clothSeason').value,
+			scene:document.getElementById('clothScene').value,
+			image:reader.result
+		};
+		try{
+			const items = getClosetItems();
+			items.unshift(item);
+			localStorage.setItem('closetItems', JSON.stringify(items.slice(0,50)));
+			document.getElementById('closetForm').reset();
+			status.textContent = '服を登録しました。';
+			loadCloset();
+		}catch(error){
+			status.textContent = '保存できませんでした。画像のサイズを小さくして再度お試しください。';
+		}
 	};
+	reader.onerror = ()=>{ status.textContent = '画像を読み込めませんでした。'; };
 	reader.readAsDataURL(file);
+}
+
+function removeClosetItem(id){
+	const items = getClosetItems().filter(item=>item.id !== id);
+	localStorage.setItem('closetItems', JSON.stringify(items));
+	loadCloset();
 }
 
 
 // --- コーデ提案（簡易） ---
 // 登録済みの服画像からランダムに2点選び、提案と簡単なアドバイスを表示する
 function makeProposal(){
-	const raw = localStorage.getItem('closetItems');
-	const arr = raw ? JSON.parse(raw) : [];
+	const arr = getClosetItems();
 	const proposalEl = document.getElementById('proposal');
 	const adviceEl = document.getElementById('advice');
 	proposalEl.innerHTML = '';
@@ -313,7 +431,10 @@ function makeProposal(){
 	const indices = new Set();
 	while(indices.size < Math.min(2, arr.length)) indices.add(Math.floor(Math.random()*arr.length));
 	indices.forEach(i=>{
-		const img = document.createElement('img'); img.src = arr[i]; proposalEl.appendChild(img);
+		const img = document.createElement('img');
+		img.src = arr[i].image;
+		img.alt = arr[i].name;
+		proposalEl.appendChild(img);
 	});
 	// アドバイス生成（天気・ムード・顔タイプから簡易メッセージ）
 	const mood = localStorage.getItem('selectedMood') || '指定なし';
