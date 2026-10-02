@@ -1,7 +1,12 @@
+// このファイルは IndexedDB を使うための Dexie 設定ファイル。
+// 服の画像や顔タイプなどをブラウザ内に保存し、ページを再読み込みしてもデータを残せるようにする役割を持つ。
+
 // 1. データベースの初期化とテーブル作成
 const db = new Dexie('MyClosetDatabase');
 
 // バージョンとテーブル構成を定義
+// userProfile: ユーザーの顔タイプを保存
+// clothes: 服の画像とタイトル、カテゴリ、保存日時を保存
 db.version(1).stores({
   userProfile: 'id, faceType', // 顔タイプ保存用
   clothes: '++id, title, category, imageBase64, createdAt' // 服データ保存用

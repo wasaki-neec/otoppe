@@ -257,3 +257,17 @@
 * **運用Dさん（PM/UX）：** 「④で表示するアドバイス文章のテンプレート」や「試着用の洋服の透過PNG画像」を準備する。
 
 この構成をドキュメントにまとめておくだけで、「これどう作ればいいんだっけ？」という迷いが一気になくなりますよ！
+
+## 技術スタック
+- HTML5
+- CSS3
+- JavaScript (ES6+)
+- MediaPipe Face Landmarker / Face Mesh
+- Open-Meteo API
+- LocalStorage
+- IndexedDB + Dexie.js
+- Web Camera API
+- Canvas
+- Streamlit
+- Python (requests, OpenCV, MediaPipe)
+- Monaca / Capacitor（アプリ化想定）

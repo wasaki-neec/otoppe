@@ -1,9 +1,14 @@
+# --- このスクリプトの役割 ---
+# MediaPipe の Face Landmarker を使って、画像内の顔を検出し、顔の特徴点座標を出力するためのサンプル実装。
+# 実際には一枚の画像ファイルを読み込み、顔ランドマークを取得して、最初の顔の 1 番目の特徴点をコンソールへ表示する。
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 # 1. オプションの設定
+# Face Landmarker のモデルファイルを読み込み、表情のブレンドシェイプや顔の姿勢行列も一緒に出力する。
 base_options = python.BaseOptions(model_asset_path='face_landmarker.task')
 options = vision.FaceLandmarkerOptions(
     base_options=base_options,
