@@ -104,6 +104,12 @@ body{
 .hidden{display:none}
 
 /* コーデ提案の5枠 */
+#weatherSource {
+	margin: 8px 0 12px;
+	font-size: 12px;
+	color: var(--muted);
+}
+
 #proposal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
 .proposal-slot{min-width:0}
 .proposal-slot h3{margin:0 0 6px;font-size:14px}
@@ -203,6 +209,7 @@ video{
 	color:#fff;
 }
 .closet-status{margin:0;color:var(--muted);font-size:13px}
+.storage-status{margin:6px 0 0;color:#4b5563;font-size:12px;line-height:1.4}
 
 .closet-item{
 	min-width:0;

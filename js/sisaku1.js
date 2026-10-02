@@ -10,11 +10,102 @@
 		・登録済み服からコーディネート案を自動生成
 */
 
+// --- Dexie データベース設定 ---
+// IndexedDB を使って、顔タイプとクローゼットの服情報をブラウザに保存する。
+// localStorage だけでは容量や構造の制約があるため、Dexie を併用して管理する。
+const db = (typeof Dexie !== 'undefined') ? new Dexie('FeelingCollectionDB') : null;
+if (db) {
+	db.version(1).stores({
+		userProfile: 'id',
+		clothes: 'id, category, season, scene, createdAt'
+	});
+}
+
+async function ensureDexieReady() {
+	if (!db) {
+		return false;
+	}
+	try {
+		await db.open();
+		const statusEl = document.getElementById('dexieStatus');
+		if (statusEl) statusEl.textContent = 'Dexie: 接続済み（IndexedDBで保存中）';
+		return true;
+	}catch(error){
+		console.error('Dexie 初期化エラー:', error);
+		const statusEl = document.getElementById('dexieStatus');
+		if (statusEl) statusEl.textContent = 'Dexie: 接続に失敗しました';
+		return false;
+	}
+}
+
+async function saveFaceTypeToDexie(type) {
+	if (!db) return;
+	try {
+		await db.userProfile.put({ id: 'user_profile', faceType: type, updatedAt: new Date().toISOString() });
+	}catch(error){
+		console.error('顔タイプのDexie保存に失敗:', error);
+	}
+}
+
+async function getFaceTypeFromDexie() {
+	if (!db) return null;
+	try {
+		const profile = await db.userProfile.get('user_profile');
+		return profile?.faceType || null;
+	}catch(error){
+		console.error('顔タイプのDexie取得に失敗:', error);
+		return null;
+	}
+}
+
+async function syncClothToDexie(item) {
+	if (!db) return;
+	try {
+		await db.clothes.put({
+			...item,
+			createdAt: item.createdAt || new Date().toISOString()
+		});
+	}catch(error){
+		console.error('服データのDexie保存に失敗:', error);
+	}
+}
+
+async function deleteClothFromDexie(id) {
+	if (!db) return;
+	try {
+		await db.clothes.delete(id);
+	}catch(error){
+		console.error('服データのDexie削除に失敗:', error);
+	}
+}
+
+async function getDexieClothes() {
+	if (!db) return [];
+	try {
+		const items = await db.clothes.orderBy('createdAt').reverse().toArray();
+		return items.map(item => ({
+			id: item.id,
+			name: item.name || item.title || '登録した服',
+			category: item.category || '未分類',
+			season: item.season || '通年',
+			scene: item.scene || '指定なし',
+			image: item.image || item.imageBase64 || '',
+			createdAt: item.createdAt || new Date().toISOString()
+		})).filter(item => item.image);
+	}catch(error){
+		console.error('Dexie からの服取得に失敗:', error);
+		return [];
+	}
+}
+
 // DOM が準備できたら初期化処理を実行する。
 // つまり、HTML の要素が読まれた後に、UI のイベント登録・保存データ復元・現在の天気取得を順番に行う。
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded', async ()=>{
+	await ensureDexieReady();
+	const defaultMood = getSelectedMood();
+	applyMoodSelection(defaultMood);
 	initUI();      // ボタンや入力にイベントを割り当てる
-	loadCloset();   // 保存済みのクローゼット画像を読み込んで画面に表示する
+	await loadCloset();   // 保存済みのクローゼット画像を読み込んで画面に表示する
 	updateWeather();// 現在の気候情報を取得して表示する
 });
 
@@ -63,10 +154,61 @@ function showSection(id){
 
 
 // --- 天気取得（Open-Meteo を使用：APIキー不要） ---
-// 位置情報を取得して Open-Meteo の current_weather を参照し、結果を表示する
+// まず app.py で保存された weather_cache.json があればそれを使い、
+// なければ端末の位置情報から Open-Meteo を呼んで現在地の天気を取得する。
+const WEATHER_CACHE_URL = './weather_cache.json';
+
+function renderWeatherData(data, sourceLabel = '自動取得') {
+	const el = document.getElementById('weather');
+	const sourceEl = document.getElementById('weatherSource');
+	if (!data) {
+		el.textContent = '気候情報を取得できませんでした';
+		if (sourceEl) sourceEl.textContent = `データソース: ${sourceLabel}`;
+		return;
+	}
+
+	const temp = data.temperature ?? data.temp ?? '—';
+	const feelsLike = data.feels_like ?? data.apparent_temperature ?? '—';
+	const humidity = data.humidity ?? '—';
+	const cityName = data.city || '現在地';
+	const weatherText = data.weather_text || '天気情報';
+	const feelingText = data.feeling_text || '服装の目安';
+
+	el.innerHTML = `
+		<div class="weather-summary">
+			<strong>${cityName}</strong><br>
+			気温: ${temp}°C / 体感: ${feelsLike}°C<br>
+			湿度: ${humidity}% / 天気: ${weatherText}<br>
+			服装: ${feelingText}
+		</div>
+	`;
+	if (sourceEl) sourceEl.textContent = `データソース: ${sourceLabel}`;
+}
+
+async function loadWeatherFromCache() {
+	try {
+		const response = await fetch(WEATHER_CACHE_URL, { cache: 'no-store' });
+		if (!response.ok) return null;
+		const data = await response.json();
+		if (data && (data.temperature !== undefined || data.temp !== undefined || data.city)) {
+			return data;
+		}
+	} catch (error) {
+		console.warn('weather_cache.json の読込に失敗:', error);
+	}
+	return null;
+}
+
 async function updateWeather(){
 	const el = document.getElementById('weather');
-	el.textContent = '取得中… 位置情報の許可を求めます';
+	el.textContent = '取得中…';
+
+	const cached = await loadWeatherFromCache();
+	if (cached) {
+		renderWeatherData(cached, 'app.py / weather_cache.json');
+		return;
+	}
+
 	if(navigator.geolocation){
 		navigator.geolocation.getCurrentPosition(async pos=>{
 			const lat = pos.coords.latitude.toFixed(4);
@@ -77,29 +219,67 @@ async function updateWeather(){
 				const j = await r.json();
 				if(j && j.current_weather){
 					const w = j.current_weather;
-					// 簡易表示: 風速と気温を出力
-					el.innerHTML = `現在: 風速 ${w.windspeed}m/s / 気温 ${w.temperature}°C (時刻 ${w.time})`;
-				} else el.textContent = '気候情報を取得できませんでした';
-			}catch(e){ el.textContent = '気候取得でエラーが発生しました'; }
-		}, err=>{ el.textContent = '位置情報が許可されていません。手動で再試行してください'; });
+					renderWeatherData({
+						city: '現在地',
+						temperature: w.temperature,
+						feels_like: w.temperature,
+						humidity: '—',
+						weather_text: '現在の天気',
+						feeling_text: '外の気温に合わせて調整',
+					}, '位置情報 / Open-Meteo');
+				} else {
+					renderWeatherData(null, '位置情報 / Open-Meteo');
+				}
+			}catch(e){
+				renderWeatherData(null, '位置情報 / Open-Meteo');
+			}
+		}, err=>{ 
+			renderWeatherData(null, '位置情報拒否');
+		});
 	} else {
-		el.textContent = '位置情報が利用できません';
+		renderWeatherData(null, '位置情報非対応');
 	}
 }
 
 
 // --- 気分（ムード）選択 ---
-// ボタンの見た目を切り替え、選択した値を localStorage に保存
+// デフォルトは「普段」にして、選択したムードをコーデ提案ロジックが参照できるようにする。
+const MOOD_PRIORITY = {
+	'普段': ['普段着', '休日', '仕事', 'デート'],
+	'仕事': ['仕事', 'フォーマル', '普段着'],
+	'休日': ['休日', '普段着', 'デート'],
+	'デート': ['デート', '休日', '普段着'],
+	'リラックス': ['休日', '普段着'],
+	'オフィスカジュアル': ['仕事', '普段着', 'フォーマル'],
+	'フォーマル': ['フォーマル', '仕事', 'デート']
+};
+
+function getSelectedMood(){
+	return localStorage.getItem('selectedMood') || '普段';
+}
+
+function applyMoodSelection(mood){
+	document.querySelectorAll('#moodButtons button').forEach(b=>{
+		const isActive = b.dataset.mood === mood;
+		b.classList.toggle('active', isActive);
+	});
+	localStorage.setItem('selectedMood', mood);
+	if (db) {
+		db.userProfile.put({ id: 'selected_mood', mood, updatedAt: new Date().toISOString() }).catch(error => {
+			console.error('ムードのDexie保存に失敗:', error);
+		});
+	}
+}
+
 function selectMood(btn){
-	document.querySelectorAll('#moodButtons button').forEach(b=>b.classList.remove('active'));
-	btn.classList.add('active');
-	localStorage.setItem('selectedMood', btn.dataset.mood);
+	const mood = btn.dataset.mood;
+	applyMoodSelection(mood);
 }
 
 
 // --- カメラ / 顔撮影（MediaPipe Face Landmarker） ---
 const faceLandmarkerModelUrl = './models/face_landmarker.task';
-const faceLandmarkerModuleUrl = './vendor/tasks-vision.mjs';
+const faceLandmarkerModuleUrl = '../vendor/tasks-vision.mjs';
 const faceLandmarkerWasmUrl = './vendor/wasm';
 let stream = null;
 let faceLandmarker = null;
@@ -226,6 +406,7 @@ async function analyzeFaceCanvas(canvas){
 		};
 		localStorage.setItem('faceLandmark', JSON.stringify(landmarkData));
 		localStorage.setItem('faceType', faceType);
+		await saveFaceTypeToDexie(faceType);
 		resultEl.textContent = `判定結果：${faceType}`;
 		document.getElementById('faceMetrics').textContent = [
 			`顔の縦横比: ${features.faceRatio.toFixed(2)}`,
@@ -269,9 +450,9 @@ function analyzeFaceImage(file){
 }
 
 
-// --- クローゼット（localStorage に画像を保存して一覧表示） ---
-function loadCloset(){
-	const arr = getClosetItems();
+// --- クローゼット（localStorage + Dexie に保存して一覧表示） ---
+async function loadCloset(){
+	const arr = await getClosetItems();
 	const grid = document.getElementById('closetGrid');
 	grid.innerHTML = '';
 	if(arr.length===0){
@@ -299,7 +480,7 @@ function loadCloset(){
 		const removeButton = document.createElement('button');
 		removeButton.type = 'button';
 		removeButton.textContent = '削除';
-		removeButton.addEventListener('click', ()=>removeClosetItem(item.id));
+		removeButton.addEventListener('click', async ()=>{ await removeClosetItem(item.id); });
 		actions.append(editButton, removeButton);
 		wrapper.append(img, name, details, actions);
 		grid.appendChild(wrapper);
@@ -342,9 +523,10 @@ function createClosetEditForm(item){
 	cancelButton.addEventListener('click', loadCloset);
 	actions.append(saveButton, cancelButton);
 	form.appendChild(actions);
-	form.addEventListener('submit', event=>{
+	form.addEventListener('submit', async event=>{
 		event.preventDefault();
-		const items = getClosetItems().map(existing=>existing.id === item.id ? {
+		const items = await getClosetItems();
+		const updatedItems = items.map(existing=>existing.id === item.id ? {
 			...existing,
 			name:nameInput.value.trim(),
 			category:categorySelect.value,
@@ -352,8 +534,19 @@ function createClosetEditForm(item){
 			scene:sceneSelect.value
 		} : existing);
 		try{
-			localStorage.setItem('closetItems', JSON.stringify(items));
-			loadCloset();
+			localStorage.setItem('closetItems', JSON.stringify(updatedItems));
+			if (db) {
+				await db.clothes.put({
+					id: item.id,
+					name: nameInput.value.trim(),
+					category: categorySelect.value,
+					season: seasonSelect.value,
+					scene: sceneSelect.value,
+					image: item.image,
+					createdAt: item.createdAt || new Date().toISOString()
+				});
+			}
+			await loadCloset();
 			document.getElementById('closetStatus').textContent = '変更を保存しました。';
 		}catch(error){
 			document.getElementById('closetStatus').textContent = '変更を保存できませんでした。';
@@ -362,7 +555,11 @@ function createClosetEditForm(item){
 	return form;
 }
 
-function getClosetItems(){
+async function getClosetItems(){
+	if (db) {
+		const dexieItems = await getDexieClothes();
+		if (dexieItems.length > 0) return dexieItems;
+	}
 	const raw = localStorage.getItem('closetItems');
 	if(!raw) return [];
 	try{
@@ -380,30 +577,32 @@ function getClosetItems(){
 	}
 }
 
-// 画像と入力情報を localStorage に保存し、最大 50 件まで保持
-function addClosetItem(file){
+// 画像と入力情報を localStorage + Dexie に保存し、最大 50 件まで保持
+async function addClosetItem(file){
 	const status = document.getElementById('closetStatus');
 	if(!file.type.startsWith('image/')){
 		status.textContent = '画像ファイルを選択してください。';
 		return;
 	}
 	const reader = new FileReader();
-	reader.onload = ()=>{
+	reader.onload = async ()=>{
 		const item = {
 			id:`closet-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
 			name:document.getElementById('clothName').value.trim(),
 			category:document.getElementById('clothCategory').value,
 			season:document.getElementById('clothSeason').value,
 			scene:document.getElementById('clothScene').value,
-			image:reader.result
+			image:reader.result,
+			createdAt:new Date().toISOString()
 		};
 		try{
-			const items = getClosetItems();
+			const items = await getClosetItems();
 			items.unshift(item);
 			localStorage.setItem('closetItems', JSON.stringify(items.slice(0,50)));
+			await syncClothToDexie(item);
 			document.getElementById('closetForm').reset();
 			status.textContent = '服を登録しました。';
-			loadCloset();
+			await loadCloset();
 		}catch(error){
 			status.textContent = '保存できませんでした。画像のサイズを小さくして再度お試しください。';
 		}
@@ -412,17 +611,18 @@ function addClosetItem(file){
 	reader.readAsDataURL(file);
 }
 
-function removeClosetItem(id){
-	const items = getClosetItems().filter(item=>item.id !== id);
+async function removeClosetItem(id){
+	const items = (await getClosetItems()).filter(item=>item.id !== id);
 	localStorage.setItem('closetItems', JSON.stringify(items));
-	loadCloset();
+	await deleteClothFromDexie(id);
+	await loadCloset();
 }
 
 
 // --- コーデ提案 ---
 // カテゴリごとに1点選び、未登録のカテゴリも空の枠として表示する
-function makeProposal(){
-	const arr = getClosetItems();
+async function makeProposal(){
+	const arr = await getClosetItems();
 	const proposalEl = document.getElementById('proposal');
 	const adviceEl = document.getElementById('advice');
 	proposalEl.innerHTML = '';
@@ -434,14 +634,38 @@ function makeProposal(){
 		{label:'靴', categories:['靴']},
 		{label:'アクセ', categories:['アクセサリー','アクセ','小物','靴・小物']}
 	];
+	const mood = getSelectedMood();
+	const preferredScenes = MOOD_PRIORITY[mood] || [mood, '普段着'];
+	const upperChoices = arr.filter(item => ['トップス', 'アウター', 'ワンピース'].includes(item.category));
+	const moodUpperChoices = upperChoices.filter(item =>
+		preferredScenes.includes(item.scene) || item.scene === '指定なし'
+	);
+	const upperCandidates = moodUpperChoices.length ? moodUpperChoices : upperChoices;
+	const selectedUpper = upperCandidates[Math.floor(Math.random() * upperCandidates.length)] || null;
+	const isDressChosen = selectedUpper?.category === 'ワンピース';
+
+	function getCandidates(categories){
+		const matchingItems = arr.filter(item => categories.includes(item.category));
+		const moodItems = matchingItems.filter(item =>
+			preferredScenes.includes(item.scene) || item.scene === '指定なし'
+		);
+		return moodItems.length ? moodItems : matchingItems;
+	}
+
 	slots.forEach(slot=>{
+		if (slot.label === '服下' && isDressChosen) return;
+
 		const wrapper = document.createElement('article');
 		wrapper.className = 'proposal-slot';
 		const heading = document.createElement('h3');
 		heading.textContent = slot.label;
 		const content = document.createElement('div');
 		content.className = 'proposal-slot-content';
-		const candidates = arr.filter(item=>slot.categories.includes(item.category));
+
+		const candidates = slot.label === '服上'
+			? (selectedUpper ? [selectedUpper] : [])
+			: getCandidates(slot.categories);
+
 		if(candidates.length){
 			const item = candidates[Math.floor(Math.random()*candidates.length)];
 			const img = document.createElement('img');
@@ -452,16 +676,20 @@ function makeProposal(){
 			name.textContent = item.name;
 			content.append(img);
 			wrapper.append(heading, content, name);
+		}else if (slot.label === '服下'){
+			const message = document.createElement('p');
+			message.className = 'proposal-item-name';
+			message.textContent = 'ボトムスまたはスカートを登録してください。';
+			content.appendChild(message);
+			wrapper.append(heading, content);
 		}else{
 			wrapper.append(heading, content);
 		}
 		proposalEl.appendChild(wrapper);
 	});
 	if(arr.length===0){ adviceEl.textContent = 'クローゼットが空です。服を登録してください。'; return; }
-	// アドバイス生成（天気・ムード・顔タイプから簡易メッセージ）
-	const mood = localStorage.getItem('selectedMood') || '指定なし';
 	const faceType = localStorage.getItem('faceType') || '未登録';
-	adviceEl.textContent = `${mood}向け／顔タイプ: ${faceType} — シンプルに組み合わせてみました。実際の気温や気分に合わせ微調整をしてください。`;
+	adviceEl.textContent = `${mood}向け／顔タイプ: ${faceType} — 選ばれた服は${mood}に合わせて調整しています。気温やその日の気分に合わせて微調整してください。`;
 }
 
 

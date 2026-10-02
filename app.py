@@ -2,8 +2,32 @@
 # Streamlit アプリとして動作し、Open-Meteo API から都市ごとの現在の気温・湿度・天気コードを取得して
 # 画面上に表示する。ユーザーが都市を選ぶと、その都市のデータを取得して体感温度と服装の目安までまとめて提示する。
 
+import json
+from pathlib import Path
+
 import streamlit as st
 import requests
+
+WEATHER_CACHE_PATH = Path(__file__).with_name("weather_cache.json")
+
+
+def save_weather_snapshot(city_name, lat, lon, weather_data):
+    """天気情報を JSON 形式で保存し、HTML/JS 側でも使えるようにする。"""
+    payload = {
+        "city": city_name,
+        "lat": lat,
+        "lon": lon,
+        "updatedAt": __import__('datetime').datetime.now().isoformat(timespec='seconds'),
+        "temperature": weather_data.get("temperature"),
+        "feels_like": weather_data.get("feels_like"),
+        "humidity": weather_data.get("humidity"),
+        "weather_code": weather_data.get("weather_code"),
+        "weather_text": weather_data.get("weather_text"),
+        "feeling_text": weather_data.get("feeling_text"),
+        "source": "app.py"
+    }
+    WEATHER_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+    return payload
 
 # --- ページ設定 ---
 st.set_page_config(
@@ -95,6 +119,20 @@ try:
         
         weather_text = decode_weather_code(weather_code)
         feeling_text = get_temperature_feeling(temp, humidity)
+
+        save_weather_snapshot(
+            selected_city,
+            lat,
+            lon,
+            {
+                "temperature": temp,
+                "feels_like": feels_like,
+                "humidity": humidity,
+                "weather_code": weather_code,
+                "weather_text": weather_text,
+                "feeling_text": feeling_text,
+            },
+        )
 
         # --- 画面にカード表示 ---
         st.write("---")

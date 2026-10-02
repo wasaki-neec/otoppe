@@ -7,6 +7,8 @@
 	<meta name="description" content="フィーリングコレクション - あなたの気分や顔タイプに合わせたコーディネート提案アプリ" />
 	<title>フィーリングコレクション - プロトタイプ</title>
 	<link rel="stylesheet" href="css/sisaku1.css">
+	<!-- Dexie.js CDN -->
+	<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
 </head>
 <body>
 	<!-- サイトヘッダー：アプリ名表示 -->
@@ -21,6 +23,7 @@
 		<section id="weatherSection" class="card">
 			<h2>現在の気候</h2>
 			<div id="weather">位置情報と気候を取得しています…</div>
+			<div id="weatherSource" class="weather-source">データソース: 自動取得</div>
 			<button id="refreshWeather">天気を更新</button>
 		</section>
 
@@ -121,6 +124,7 @@
 				</label>
 				<button type="submit">服を登録</button>
 				<p id="closetStatus" class="closet-status" aria-live="polite"></p>
+				<p id="dexieStatus" class="storage-status" aria-live="polite">Dexie: 初期化中…</p>
 			</form>
 			<div id="closetGrid" class="grid"></div>
 		</section>

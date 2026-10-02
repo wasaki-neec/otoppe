@@ -172,7 +172,7 @@
 
 
 * **動作仕様：**
-* ボタンタップ時、`MediaPipe Face Mesh` 等を起動。
+* ボタンタップ時、`MediaPipe Face Landmarker` を起動。
 * 目・鼻・口・アゴの座標を取得し、指定の判定ロジック（比率計算）を実行。
 * 判定結果（例: 「フレッシュタイプ」）をスマホのローカルストレージ（`LocalStorage`）に保存し、④または⑤の画面へ遷移。
 
@@ -238,7 +238,7 @@
 * **動作推奨環境：** iOS 16以上（Safariブラウザ環境）
 * **使用技術・ライブラリ：**
 * **フロントエンド：** HTML5, CSS3, JavaScript (ES6+)
-* **顔認識ライブラリ：** MediaPipe Face Mesh (または face-api.js)
+* **顔認識ライブラリ：** MediaPipe Tasks Vision - Face Landmarker
 * **データ保存：** ブラウザ内ストレージ (LocalStorage)
 * **外部API：** OpenWeatherMap API（気温・湿度取得用）
 * **アプリパッケージ化：** Monaca / Capacitor
@@ -262,7 +262,7 @@
 - HTML5
 - CSS3
 - JavaScript (ES6+)
-- MediaPipe Face Landmarker / Face Mesh
+- MediaPipe Tasks Vision - Face Landmarker
 - Open-Meteo API
 - LocalStorage
 - IndexedDB + Dexie.js
@@ -271,3 +271,9 @@
 - Streamlit
 - Python (requests, OpenCV, MediaPipe)
 - Monaca / Capacitor（アプリ化想定）
+
+## 顔認識の動作確認状況
+- ブラウザ上で MediaPipe Tasks Vision モジュールと WASM の読み込みを確認。
+- 顔モデルの初期化は未完了。`models/face_landmarker.task` を読み込む段階で `Unable to open zip archive` が発生し、顔検出は実行できなかった。
+- ファイルは存在するが ZIP アーカイブとして検証できないため、破損または形式不正の可能性がある。正しい Face Landmarker の `.task` モデルに差し替える必要がある。
+- 顔モデルは `js/sisaku1.js` から `../vendor/tasks-vision.mjs` を読み込む。`file://` ではなく localhost または HTTPS でページを開く。
