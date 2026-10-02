@@ -103,13 +103,22 @@ body{
 /* ユーティリティ */
 .hidden{display:none}
 
-/* 提案表示（選ばれた服の並び） */
-#proposal{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-#proposal img{
-	width:calc(50% - 5px);
+/* コーデ提案の5枠 */
+#proposal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.proposal-slot{min-width:0}
+.proposal-slot h3{margin:0 0 6px;font-size:14px}
+.proposal-slot-content{
+	aspect-ratio:3 / 4;
+	overflow:hidden;
+	border:1px dashed #ccc;
 	border-radius:8px;
-	object-fit:cover;
-	aspect-ratio:1;
+	background:#fcfcfc;
+}
+.proposal-slot-content img{display:block;width:100%;height:100%;object-fit:cover}
+.proposal-item-name{margin:4px 0 0;font-size:12px;overflow-wrap:anywhere}
+
+@media(min-width:640px){
+	#proposal{grid-template-columns:repeat(5,minmax(0,1fr))}
 }
 
 /* 提案アドバイスの注意喚起スタイル */

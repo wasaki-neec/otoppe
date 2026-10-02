@@ -103,20 +103,11 @@ const faceLandmarkerWasmUrl = './vendor/wasm';
 let stream = null;
 let faceLandmarker = null;
 
-<<<<<<< HEAD
-<<<<<<< HEAD:js/sisaku1.js
-=======
->>>>>>> d614a1b (five-okame)
 function showFaceDiagnostic(message){
 	const noticeEl = document.getElementById('faceNotice');
 	if(noticeEl) noticeEl.textContent = message;
 }
 
-<<<<<<< HEAD
-=======
->>>>>>> 987886a (four-okame):sisaku1.js
-=======
->>>>>>> d614a1b (five-okame)
 function distanceBetween(firstPoint, secondPoint){
 	const x = firstPoint.x - secondPoint.x;
 	const y = firstPoint.y - secondPoint.y;
@@ -154,10 +145,6 @@ function classifyFace(features){
 
 async function getFaceLandmarker(){
 	if(faceLandmarker) return faceLandmarker;
-<<<<<<< HEAD
-<<<<<<< HEAD:js/sisaku1.js
-=======
->>>>>>> d614a1b (five-okame)
 	if(location.protocol === 'file:'){
 		throw new Error('file://で開かれています。ブラウザの制限により、ローカルのJS・WASM・モデルを読み込めません。localhostまたはHTTPSで開いてください');
 	}
@@ -183,19 +170,6 @@ async function getFaceLandmarker(){
 	}catch(error){
 		throw new Error(`顔モデル読込失敗: ${faceLandmarkerModelUrl} (${error.message})`);
 	}
-<<<<<<< HEAD
-=======
-	const vision = await import(faceLandmarkerModuleUrl);
-	const filesetResolver = await vision.FilesetResolver.forVisionTasks(faceLandmarkerWasmUrl);
-	faceLandmarker = await vision.FaceLandmarker.createFromOptions(filesetResolver, {
-		baseOptions:{modelAssetPath:faceLandmarkerModelUrl},
-		outputFaceBlendshapes:true,
-		outputFacialTransformationMatrixes:true,
-		numFaces:1
-	});
->>>>>>> 987886a (four-okame):sisaku1.js
-=======
->>>>>>> d614a1b (five-okame)
 	return faceLandmarker;
 }
 
@@ -229,15 +203,7 @@ async function analyzeFaceCanvas(canvas){
 	resultEl.textContent = '顔を解析中…';
 	try{
 		const landmarker = await getFaceLandmarker();
-<<<<<<< HEAD
-<<<<<<< HEAD:js/sisaku1.js
 		const detectionResult = landmarker.detect(canvas);
-=======
-		const detectionResult = landmarker.detect(c);
->>>>>>> 987886a (four-okame):sisaku1.js
-=======
-		const detectionResult = landmarker.detect(canvas);
->>>>>>> d614a1b (five-okame)
 		if(!detectionResult.faceLandmarks || detectionResult.faceLandmarks.length === 0){
 			localStorage.removeItem('faceType');
 			document.getElementById('faceMetrics').textContent = '';
@@ -268,19 +234,9 @@ async function analyzeFaceCanvas(canvas){
 		].join(' / ');
 	}catch(error){
 		console.error('Face Landmarkerの初期化または検出に失敗しました', error);
-<<<<<<< HEAD
-<<<<<<< HEAD:js/sisaku1.js
 		const detail = error instanceof Error ? error.message : String(error);
 		resultEl.textContent = '顔判別の準備に失敗しました';
 		showFaceDiagnostic(`原因: ${detail} 実行元: ${location.href}`);
-=======
-		resultEl.textContent = '顔判別の準備に失敗しました。modelsとvendorの配置を確認してください';
->>>>>>> 987886a (four-okame):sisaku1.js
-=======
-		const detail = error instanceof Error ? error.message : String(error);
-		resultEl.textContent = '顔判別の準備に失敗しました';
-		showFaceDiagnostic(`原因: ${detail} 実行元: ${location.href}`);
->>>>>>> d614a1b (five-okame)
 	}
 }
 
@@ -462,24 +418,45 @@ function removeClosetItem(id){
 }
 
 
-// --- コーデ提案（簡易） ---
-// 登録済みの服画像からランダムに2点選び、提案と簡単なアドバイスを表示する
+// --- コーデ提案 ---
+// カテゴリごとに1点選び、未登録のカテゴリも空の枠として表示する
 function makeProposal(){
 	const arr = getClosetItems();
 	const proposalEl = document.getElementById('proposal');
 	const adviceEl = document.getElementById('advice');
 	proposalEl.innerHTML = '';
 	adviceEl.textContent = '';
-	if(arr.length===0){ adviceEl.textContent = 'クローゼットが空です。服を登録してください。'; return; }
-	// 簡易: ランダムに2点選ぶ
-	const indices = new Set();
-	while(indices.size < Math.min(2, arr.length)) indices.add(Math.floor(Math.random()*arr.length));
-	indices.forEach(i=>{
-		const img = document.createElement('img');
-		img.src = arr[i].image;
-		img.alt = arr[i].name;
-		proposalEl.appendChild(img);
+	const slots = [
+		{label:'頭', categories:['帽子','顔周りのアクセ','顔周りの小物']},
+		{label:'服上', categories:['トップス','アウター','ワンピース']},
+		{label:'服下', categories:['ボトムス','スカート']},
+		{label:'靴', categories:['靴']},
+		{label:'アクセ', categories:['アクセサリー','アクセ','小物','靴・小物']}
+	];
+	slots.forEach(slot=>{
+		const wrapper = document.createElement('article');
+		wrapper.className = 'proposal-slot';
+		const heading = document.createElement('h3');
+		heading.textContent = slot.label;
+		const content = document.createElement('div');
+		content.className = 'proposal-slot-content';
+		const candidates = arr.filter(item=>slot.categories.includes(item.category));
+		if(candidates.length){
+			const item = candidates[Math.floor(Math.random()*candidates.length)];
+			const img = document.createElement('img');
+			img.src = item.image;
+			img.alt = item.name;
+			const name = document.createElement('p');
+			name.className = 'proposal-item-name';
+			name.textContent = item.name;
+			content.append(img);
+			wrapper.append(heading, content, name);
+		}else{
+			wrapper.append(heading, content);
+		}
+		proposalEl.appendChild(wrapper);
 	});
+	if(arr.length===0){ adviceEl.textContent = 'クローゼットが空です。服を登録してください。'; return; }
 	// アドバイス生成（天気・ムード・顔タイプから簡易メッセージ）
 	const mood = localStorage.getItem('selectedMood') || '指定なし';
 	const faceType = localStorage.getItem('faceType') || '未登録';
